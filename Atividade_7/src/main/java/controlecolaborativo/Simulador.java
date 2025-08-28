@@ -1,35 +1,50 @@
 package controlecolaborativo;
 
-import controlecolaborativo.coordenador.Coordenador;
+import controlecolaborativo.comum.Logger;
 import controlecolaborativo.no.No;
 
-/**
- * Classe principal para iniciar e orquestrar a simulação do sistema.
- */
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class Simulador {
-    public static void main(String[] args) {
-        final int NUMERO_DE_NOS = 4;
 
-        // Inicia o Coordenador em uma nova thread
-        Thread threadCoordenador = new Thread(() -> {
-            Coordenador.main(null);
-        });
-        threadCoordenador.start();
+    private static final int NUMERO_DE_NOS = 4;
+    private static final int PORTA_BASE_ELEICAO = 6000;
 
-        // Aguarda um pouco para garantir que o coordenador esteja pronto
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {}
-
-        // Inicia múltiplos Nós (clientes), cada um em sua própria thread
+    public static void main(String[] args) throws InterruptedException {
+        // 1. Mapear os IDs e portas de eleição para todos os nós
+        Map<Integer, Integer> peers = new HashMap<>();
         for (int i = 1; i <= NUMERO_DE_NOS; i++) {
-            final int idNoFinal = i; // Cria uma cópia final da variável
-            new Thread(() -> {
-                No no = new No(idNoFinal); // Usa a cópia final
-                no.iniciar("localhost", 12345);
-            }).start();
+            peers.put(i, PORTA_BASE_ELEICAO + i);
         }
 
-        System.out.println("[SIMULADOR] Simulação iniciada com 1 Coordenador e " + NUMERO_DE_NOS + " Nós.");
+        // 2. Criar e iniciar todos os nós
+        List<Thread> nodeThreads = new ArrayList<>();
+        List<No> nodes = new ArrayList<>();
+
+        for (int i = 1; i <= NUMERO_DE_NOS; i++) {
+            No no = new No(i, peers);
+            nodes.add(no);
+            Thread thread = new Thread(no::iniciar);
+            nodeThreads.add(thread);
+            thread.start();
+        }
+
+        Logger.logSimulador("Todos os nós foram iniciados.");
+        Logger.logSimulador("O sistema irá operar normalmente por 45 segundos.");
+        Thread.sleep(45000); // Aumenta o tempo para observar a operação normal
+
+        // 3. Simular a falha do coordenador atual (o de maior ID)
+        int initialCoordinatorId = NUMERO_DE_NOS;
+        Logger.logSimulador(String.format(">>> SIMULANDO A FALHA DO COORDENADOR P%d <<<", initialCoordinatorId));
+
+        // Encontra a thread do coordenador e a interrompe
+        Thread coordinatorThread = nodeThreads.get(initialCoordinatorId - 1);
+        coordinatorThread.interrupt(); // Interromper a thread simula a falha
+
+        Logger.logSimulador("A eleição deve começar em breve...");
+        Logger.logSimulador("O novo coordenador será o nó com o maior ID restante (P3).");
     }
 }
